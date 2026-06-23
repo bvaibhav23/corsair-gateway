@@ -1,14 +1,15 @@
 import { createCorsair } from "corsair";
 import { getPluginFactory } from "../plugins";
-import { ExecuteRequestPayload } from "../types";
+import { ExecuteRequestPayload, IntegrationCredentials } from "../types";
 
 export class ExecutionService {
   /**
    * Dynamically traverses the Corsair API tree to find the executable function.
-   * @param corsairInstance - The active Corsair runtime context.
+   * * @param corsairInstance - The active Corsair runtime context.
    * @param integration - The root integration name (e.g., 'github').
    * @param toolPath - The dot-notation path to resolve (e.g., 'issues.create').
    * @returns A bound, executable function ready to receive arguments.
+   * @throws Error if the path is invalid or not a function.
    */
   private static resolveToolMethod(
     corsairInstance: any,
@@ -42,22 +43,25 @@ export class ExecutionService {
       );
     }
 
+    // Bind the final function to its immediate parent object so 'this' remains valid inside the SDK
     return current.bind(parent);
   }
 
   /**
-   * Executes a requested tool statelessly.
-   * @param payload - The execution request details from the orchestrator.
+   * Executes a requested tool statelessly, mapping the header credentials to the target plugin.
+   * * @param payload - The execution request details from the orchestrator body.
+   * @param credentials - The decoded credentials dictionary from the HTTP header.
    * @returns The raw data returned from the third-party API.
    */
   public static async executeAction(
     payload: ExecuteRequestPayload,
+    credentials: IntegrationCredentials,
   ): Promise<any> {
-    const { integration, tool, args = {}, token, isApproved = false } = payload;
+    const { integration, tool, args = {}, isApproved = false } = payload;
 
-    // 1. Fetch the correct plugin factory and instantiate it
+    // 1. Fetch the correct plugin factory and instantiate it with the credentials
     const pluginFactory = getPluginFactory(integration);
-    const plugin = pluginFactory(token, isApproved);
+    const plugin = pluginFactory(credentials, isApproved);
 
     // 2. Boot the isolated Corsair context (Strictly Database-Free)
     const dynamicCorsair = createCorsair({
@@ -67,7 +71,6 @@ export class ExecutionService {
       kek: "4Ep5doYkrb96Vh7EEQQghYyFsdR/5oFSo7ix04JVqQw=",
     });
 
-  console.log(dynamicCorsair.github.api)
     // 3. Resolve the tool from the SDK and execute
     const executableTool = this.resolveToolMethod(
       dynamicCorsair,
