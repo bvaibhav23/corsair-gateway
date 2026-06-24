@@ -1,9 +1,9 @@
 import { github } from "@corsair-dev/github";
-import { IntegrationCredentials } from "../types";
+import { IntegrationCredentials } from "../types/index.js";
 
 /**
  * Creates a stateless, highly-scoped GitHub plugin instance.
- * * @param credentials - A dictionary expected to contain { token: string }.
+ * @param credentials - A dictionary expected to contain { token: string }.
  * @param isApproved - If true, bypasses strict mode to execute a human-approved write action.
  * @returns An initialized Corsair GitHub plugin with a patched KeyBuilder.
  */

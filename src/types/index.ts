@@ -1,15 +1,11 @@
 /**
  * A flexible dictionary to hold any type of credentials required by an integration.
- * For example:
- * - GitHub (API Key): { token: "ghp_..." }
- * - Outlook (OAuth 2.0): { clientId: "...", clientSecret: "...", accessToken: "..." }
  */
 export type IntegrationCredentials = Record<string, string>;
 
 /**
  * Represents the incoming execution payload from the C# orchestrator.
- * Note: Authentication credentials are NOT passed here. They are passed
- * securely via the 'x-integration-credentials' HTTP header as a Base64 JSON string.
+ * Note: Authentication credentials are passed securely via the 'x-integration-credentials' HTTP header.
  */
 export interface ExecuteRequestPayload {
   /** The name of the target integration (e.g., 'github', 'outlook') */

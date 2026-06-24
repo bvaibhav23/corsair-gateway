@@ -1,6 +1,9 @@
 import { createCorsair } from "corsair";
-import { getPluginFactory } from "../plugins";
-import { ExecuteRequestPayload, IntegrationCredentials } from "../types";
+import {
+  ExecuteRequestPayload,
+  IntegrationCredentials,
+} from "../types/index.js";
+import { getPluginFactory } from "../plugins/index.js";
 
 export class ExecutionService {
   /**

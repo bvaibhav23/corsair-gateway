@@ -1,5 +1,5 @@
 import { outlook } from "@corsair-dev/outlook";
-import { IntegrationCredentials } from "../types";
+import { IntegrationCredentials } from "../types/index.js";
 
 /**
  * Creates a stateless, highly-scoped Outlook plugin instance.

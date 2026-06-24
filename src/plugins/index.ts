@@ -1,6 +1,6 @@
-import { IntegrationCredentials } from "../types";
-import { createGithubPlugin } from "./github";
-import { createOutlookPlugin } from "./outlook";
+import { IntegrationCredentials } from "../types/index.js";
+import { createGithubPlugin } from "./github.js";
+import { createOutlookPlugin } from "./outlook.js";
 
 /**
  * Type definition for a dynamic plugin factory function.

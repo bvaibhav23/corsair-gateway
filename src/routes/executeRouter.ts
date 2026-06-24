@@ -1,16 +1,16 @@
 import { Router, Request, Response } from "express";
-import { ExecutionService } from "../services/ExecutionService";
+import { ExecutionService } from "../services/ExecutionService.js";
 import {
   ExecuteRequestPayload,
   ExecuteResponsePayload,
   IntegrationCredentials,
-} from "../types";
+} from "../types/index.js";
 
 export const executeRouter = Router();
 
 /**
  * POST /api/execute
- * * The primary execution gateway. Expects routing details in the body and
+ * The primary execution gateway. Expects routing details in the body and
  * Base64-encoded credentials in the 'x-integration-credentials' header.
  */
 executeRouter.post("/", async (req: Request, res: Response) => {
@@ -53,7 +53,7 @@ executeRouter.post("/", async (req: Request, res: Response) => {
 
   try {
     console.log(
-      `\n⚙️ [${payload.integration}] Routing Execution -> Tool: ${payload.tool}`,
+      `Routing Execution -> Integration: ${payload.integration} | Tool: ${payload.tool}`,
     );
 
     // 4. Pass execution to the core engine
@@ -68,7 +68,7 @@ executeRouter.post("/", async (req: Request, res: Response) => {
       error?.message?.includes("blocked by the permission policy");
 
     if (isIntercepted) {
-      console.log(`🚨 Stateless Interception Triggered for Write Action.`);
+      console.log(`Stateless Interception Triggered for Write Action.`);
       const response: ExecuteResponsePayload = {
         success: false,
         approvalRequired: true,
@@ -79,7 +79,7 @@ executeRouter.post("/", async (req: Request, res: Response) => {
     }
 
     // Standard Error Fallback
-    console.error(`❌ Execution Failed:`, error.message);
+    console.error(`Execution Failed:`, error.message);
     const response: ExecuteResponsePayload = {
       success: false,
       error: error.message,
