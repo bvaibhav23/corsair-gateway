@@ -1,89 +1,104 @@
 import { Router, Request, Response } from "express";
-import { ExecutionService } from "../services/ExecutionService.js";
 import {
   ExecuteRequestPayload,
   ExecuteResponsePayload,
   IntegrationCredentials,
 } from "../types/index.js";
+import { ProviderRegistry } from "../registry/ProviderRegistry.js";
 
 export const executeRouter = Router();
 
+// Helper to decode credentials
+const getCredentials = (req: Request): IntegrationCredentials | null => {
+  const credentialsHeader = req.headers["x-integration-credentials"] as string;
+  if (!credentialsHeader) return null;
+  try {
+    return JSON.parse(
+      Buffer.from(credentialsHeader, "base64").toString("utf-8"),
+    );
+  } catch {
+    return null;
+  }
+};
+
 /**
  * POST /api/execute
- * The primary execution gateway. Expects routing details in the body and
- * Base64-encoded credentials in the 'x-integration-credentials' header.
+ * Standardized execution endpoint for Workflow Nodes and LLM Agents.
  */
 executeRouter.post("/", async (req: Request, res: Response) => {
   const payload: ExecuteRequestPayload = req.body;
-  const credentialsHeader = req.headers["x-integration-credentials"] as string;
+  const credentials = getCredentials(req);
 
-  // 1. Validate Body Requirements
   if (!payload.integration || !payload.tool) {
-    const response: ExecuteResponsePayload = {
+    return res.status(400).json({
       success: false,
       error: "Missing required payload parameters (integration, tool).",
-    };
-    return res.status(400).json(response);
+    });
   }
-
-  // 2. Validate Header Requirements
-  if (!credentialsHeader) {
-    const response: ExecuteResponsePayload = {
+  if (!credentials) {
+    return res.status(401).json({
       success: false,
-      error: "Missing x-integration-credentials HTTP header.",
-    };
-    return res.status(401).json(response);
-  }
-
-  // 3. Decode the Base64 Credentials Dictionary
-  let credentials: IntegrationCredentials;
-  try {
-    const decodedJson = Buffer.from(credentialsHeader, "base64").toString(
-      "utf-8",
-    );
-    credentials = JSON.parse(decodedJson);
-  } catch (err) {
-    const response: ExecuteResponsePayload = {
-      success: false,
-      error:
-        "Invalid credentials header format. Must be a Base64 encoded JSON string.",
-    };
-    return res.status(400).json(response);
+      error: "Missing or invalid x-integration-credentials header.",
+    });
   }
 
   try {
     console.log(
-      `Routing Execution -> Integration: ${payload.integration} | Tool: ${payload.tool}`,
+      `[CES] Executing -> Integration: ${payload.integration} | Tool: ${payload.tool}`,
     );
 
-    // 4. Pass execution to the core engine
-    const result = await ExecutionService.executeAction(payload, credentials);
+    // 1. Get the abstract provider
+    const provider = ProviderRegistry.getProvider(payload.integration);
 
+    // 2. Execute
+    const result = await provider.executeAction(payload, credentials);
     return res.status(200).json({ success: true, data: result });
   } catch (error: any) {
-    // 5. Human-in-the-loop Interception
-    // Catches native pending errors and stateless hard-blocks
     const isIntercepted =
       error?.name === "PermissionPendingError" ||
       error?.message?.includes("blocked by the permission policy");
 
     if (isIntercepted) {
-      console.log(`Stateless Interception Triggered for Write Action.`);
-      const response: ExecuteResponsePayload = {
+      console.log(`[CES] Stateless Interception Triggered for Write Action.`);
+      return res.status(202).json({
         success: false,
         approvalRequired: true,
-        approvalId: `stateless_req_${Date.now()}`,
+        // Echo back Aventisia's executionId if provided, otherwise fallback
+        approvalId: payload.executionId || `stateless_req_${Date.now()}`,
         message: "This action requires human approval.",
-      };
-      return res.status(202).json(response);
+      });
     }
 
-    // Standard Error Fallback
-    console.error(`Execution Failed:`, error.message);
-    const response: ExecuteResponsePayload = {
+    console.error(`[CES] Execution Failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/execute/validate
+ * Validates whether the provided credentials are valid for the target integration.
+ */
+executeRouter.post("/validate", async (req: Request, res: Response) => {
+  const integration = req.body.integration;
+  const credentials = getCredentials(req);
+
+  if (!integration || !credentials) {
+    return res.status(400).json({
       success: false,
-      error: error.message,
-    };
-    return res.status(500).json(response);
+      error: "Missing integration body or credentials header.",
+    });
+  }
+
+  try {
+    const provider = ProviderRegistry.getProvider(integration);
+    const isValid = await provider.validateCredentials(
+      integration,
+      credentials,
+    );
+    return res.status(200).json({ success: true, isValid });
+  } catch (error: any) {
+    return res
+      .status(500)
+      .json({ success: false, isValid: false, error: error.message });
   }
 });

@@ -1,40 +1,75 @@
-### Step 1: Install the Corsair Plugin
+# 🧩 Adding a New Integration
 
-First, you need to add the official Outlook package from Corsair to your sidecar. Run this command in your aventisia-gateway folder:
+This directory manages the individual SaaS integrations (plugins) that are
+loaded into the default `CorsairProvider`.
 
-Bash
-`   npm install @corsair-dev/outlook   `
+To add a new application (e.g., **Slack**) to the CES, follow these exactly 5
+steps:
 
-### Step 2: Create the Outlook Factory
+## Step 1: Install the Package
 
-Next, you'll create a new file specifically for configuring the Outlook plugin. Because Microsoft Graph (which Outlook uses) relies on OAuth2, the configuration is slightly different from the api\_key setup we used for GitHub.
+```bash
+npm install @corsair-dev/slack
+```
 
-Create a new file at **src/plugins/outlook.ts** and add the following code:
+## Step 2: Create the Plugin Factory
 
-TypeScript
+Create a new file `src/plugins/slack.ts`:
 
-`   import { outlook } from '@corsair-dev/outlook';  /**   * Creates a stateless, highly-scoped Outlook plugin instance.   * @param token - The decrypted Microsoft Graph / Outlook access token from the C# vault.   * @param isApproved - If true, bypasses strict mode to execute a human-approved write action.   */  export const createOutlookPlugin = (token: string, isApproved: boolean = false) => {    const plugin = outlook({      authType: 'oauth_2', // Outlook generally uses OAuth2 access tokens      credentials: {         access_token: token       },      // Enforce Human-in-the-Loop for destructive actions      permissions: isApproved ? undefined : { mode: 'strict' }    });    // CRITICAL BYPASS: Force Corsair to use the injected C# token in memory.    plugin.keyBuilder = async (ctx: any) => {      return ctx?.options?.credentials?.access_token ?? token;    };    return plugin;  };   `
+```typescript
+import { slackPlugin } from "@corsair-dev/slack";
 
-### Step 3: Register the Plugin
+export const createSlackPlugin = (
+  credentials: Record<string, string>,
+  isApproved: boolean,
+) => {
+  return slackPlugin({
+    auth: {
+      token: credentials.token,
+    },
+    permissions: isApproved ? { mode: "permissive" } : { mode: "strict" },
+  });
+};
+```
 
-Now, you must register the newly created Outlook plugin so the ExecutionService knows how to route to it.
+## Step 3: Register the Factory
 
-Open your existing **src/plugins/index.ts** file and update it:
+Export the newly created factory in `src/plugins/index.ts`:
 
-TypeScript
+```typescript
+import { createGithubPlugin } from "./github.js";
+import { createOutlookPlugin } from "./outlook.js";
+import { createSlackPlugin } from "./slack.js";
 
-``   import { createGithubPlugin } from './github';  import { createOutlookPlugin } from './outlook'; // 1. Import the Outlook factory  type PluginFactory = (token: string, isApproved?: boolean) => any;  export const PluginRegistry: Record = {    github: createGithubPlugin,    outlook: createOutlookPlugin, // 2. Register it here  };  export function getPluginFactory(integration: string): PluginFactory {    const factory = PluginRegistry[integration];    if (!factory) {      throw new Error(`Unsupported integration: '${integration}'.`);    }    return factory;  }   ``
+const pluginRegistry: Record<string, Function> = {
+  github: createGithubPlugin,
+  outlook: createOutlookPlugin,
+  slack: createSlackPlugin,
+};
+```
 
-### Step 4: Testing the Integration
+## Step 4: Add Metadata for the UI Builder
 
-With these changes, the Node.js sidecar is ready to accept Outlook tool calls. Your C# orchestrator simply needs to send payloads targeting the "outlook" integration.
+Open `src/metadata/IntegrationMetadata.ts`:
 
-Here is an example payload you can test in Thunder Client (ensure you have a valid Microsoft access token):
+```typescript
+export const IntegrationMetadataRegistry: Record<string, IntegrationMetadata> =
+  {
+    slack: {
+      label: "Slack",
+      description:
+        "Send messages, manage channels, and automate team communication.",
+      img: "https://upload.wikimedia.org/wikipedia/commons/d/d5/Slack_icon_2019.svg",
+    },
+  };
+```
 
-**POST http://localhost:3000/api/execute**
+## Step 5: Sync the UI Configurations
 
-JSON
+```bash
+npx tsx scripts/sync-ui-configs.ts
+```
 
-`   {    "integration": "outlook",    "tool": "mail.list",    "token": "eyJ0eXAiOiJKV1Qi...",     "args": {      "folderId": "inbox",      "top": 5    }  }   `
-
-This modular approach ensures that adding Outlook (or any future plugin like Slack or Jira) requires no changes to the core execution logic or Express routing.
+This will automatically crawl the new Slack plugin, extract all its tools, build
+the LLM JSON schemas, dynamically generate the form inputs, and output them as
+static JSON files in the `/configs` directory.

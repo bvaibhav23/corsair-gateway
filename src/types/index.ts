@@ -16,6 +16,8 @@ export interface ExecuteRequestPayload {
   args?: Record<string, any>;
   /** Flag indicating if the human-in-the-loop has already approved this execution to bypass strict mode */
   isApproved?: boolean;
+  /** Accept an execution tracking ID from Aventisia for HITL correlation*/
+  executionId?: string;
 }
 
 /**
