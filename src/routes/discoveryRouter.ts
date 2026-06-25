@@ -1,37 +1,16 @@
 import { Router, Request, Response } from "express";
-import { ProviderRegistry } from "../registry/ProviderRegistry.js";
-import { IntegrationMetadataRegistry } from "../metadata/IntegrationMetadata.js";
+import { DiscoveryService } from "../services/DiscoveryService.js";
 
 export const discoveryRouter = Router();
 
 // GET /api/discovery/manifest
 discoveryRouter.get("/manifest", (req: Request, res: Response) => {
-  const actionCategories = [];
-
-  for (const integrationId of Object.keys(IntegrationMetadataRegistry)) {
-    try {
-      const provider = ProviderRegistry.getProvider(integrationId);
-      const actions = provider.getManifest(integrationId);
-
-      const meta = IntegrationMetadataRegistry[integrationId];
-      actionCategories.push({
-        label: meta.label,
-        description: meta.description,
-        icon: null,
-        img: meta.img,
-        listType: null,
-        actions: actions,
-      });
-    } catch (error) {
-      console.warn(`Failed to generate manifest for ${integrationId}`);
-    }
+  try {
+    const manifestList = DiscoveryService.getAppIntegrationsManifest();
+    return res.status(200).json(manifestList);
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message });
   }
-
-  return res.status(200).json([
-    { label: "Data Transformations", actionCategories: [] },
-    { label: "UI Interface Automations", actionCategories: [] },
-    { label: "App Integrations", actionCategories: actionCategories },
-  ]);
 });
 
 // GET /api/discovery/schema
@@ -41,8 +20,7 @@ discoveryRouter.get("/schema", (req: Request, res: Response) => {
     tool: string;
   };
   try {
-    const provider = ProviderRegistry.getProvider(integration);
-    const schema = provider.getLlmSchema(integration, tool);
+    const schema = DiscoveryService.getLlmToolSchema(integration, tool);
     return res.status(200).json({ success: true, schema });
   } catch (error: any) {
     return res.status(404).json({ success: false, error: error.message });
@@ -56,8 +34,7 @@ discoveryRouter.get("/ui-config", (req: Request, res: Response) => {
     tool: string;
   };
   try {
-    const provider = ProviderRegistry.getProvider(integration);
-    const config = provider.getUiConfig(integration, tool);
+    const config = DiscoveryService.getUiNodeConfig(integration, tool);
     return res.status(200).json({ success: true, config });
   } catch (error: any) {
     return res.status(404).json({ success: false, error: error.message });
